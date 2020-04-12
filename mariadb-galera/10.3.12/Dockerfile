@@ -1,5 +1,5 @@
 FROM jagerzhang/mariadb:10.3.12
-MAINTAINER jagerzhang<im@zhang.ge>
+MAINTAINER jerry<tnsm@163.com>
 
 ENV my_port=3307 \
     base_dir=/data/mariadb-galera

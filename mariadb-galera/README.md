@@ -55,4 +55,109 @@ docker run -d \
 
 `mysql -h192.168.1.100 -P3310 -udemo -p123456 -e "show status like '%wsrep%'"`
 
-#### 更多说明请查看详细介绍：https://zhang.ge/5150.html
+#### 批量创建(请事先创建3个地址分别为192.168.1.100，192.168.1.101，192.168.1.102的虚拟机并安装docker(详见 https://docs.docker.com/engine/install/centos/ )，配置docker API服务为2375端口(参考：https://www.cnblogs.com/nhz-M/p/11150607.html)，配置防火墙！！！)
+Python脚本:
+```
+#-*- coding:utf-8 -*-
+# author:jagerzhang
+import sys,re,os,time
+import ConfigParser
+import requests
+import json
+reload(sys)
+sys.setdefaultencoding('utf8')
+config  = ConfigParser.ConfigParser()
+
+config.read('%s/config.cfg' % os.path.dirname(os.path.realpath(__file__)))
+
+def gen_create_request(member_address=None):
+    env_list=[]
+    conf_list={}
+    for conf in config.sections():
+        for conf_name in config.options(conf):
+            conf_value = config.get(conf,conf_name)
+            env_list.append("%s=%s" % (conf_name,conf_value))
+            conf_list[conf_name] = conf_value
+    if member_address is not None:
+        env_list.append("WSREP_MEMBER_ADDRESS=%s" % member_address)
+    create_json = {
+    "Env": env_list,
+    "Image": "jagerzhang/mariadb-galera:10.3.12",
+    "HostConfig": {
+       "Binds": [
+           "%s/%s-%s:/data/mariadb-galera" % (conf_list["mount_dir"],conf_list["cluster_name"],conf_list["my_port"]),
+            "/etc/localtime:/etc/localtime"
+        ],
+        "Memory": int(conf_list["memory"])*1024*1024,
+        "MemorySwap": -1,
+        "CpusetCpus": "",
+        "Privileged": True,
+        "RestartPolicy": {
+            "restart": "always"
+        },
+        "NetworkMode": "host"
+        }
+    }
+    print create_json
+    return conf_list,create_json
+
+def create_container(host,cluster_name,my_port,create_json):
+    headers = {'Content-type': 'application/json'}
+    print "pulling image..."
+    url          =  "http://%s:2375/v1.24/images/create?fromImage=jagerzhang/mariadb-galera&tag=10.3.12" % host
+    result       =  requests.post(url)
+    print result.text
+    if result.status_code == 200:
+        print "%s pull image success: %s" % (host,result.status_code)
+        url          =  "http://%s:2375/containers/create?name=%s-%s"%(host,cluster_name,my_port)
+        print "%s create container..." % host
+        result       =  requests.post(url,data=json.dumps(create_json),headers=headers).json()
+        try:
+            url          =  "http://%s:2375/containers/%s/start" % (host,result['Id'])
+            print "%s start container..." % host
+            result       =  requests.post(url)
+            if result.status_code == 204:
+                print "%s start container success: %s" % (host,result.status_code)
+                return 0
+            else:
+                print "%s start container failed: %s" % (host,result.status_code)
+        except:
+            print "%s create container failed: %s" % (host,result)
+    else:
+        print "%s pull image failed: %s" % (host,result.status_code)
+    return result
+
+def main():
+    headers = {'Content-type': 'application/json'}
+    conf_list,create_json = gen_create_request()
+    node1        =  conf_list["node1"]
+    node2        =  conf_list["node2"]
+    node3        =  conf_list["node3"]
+    cluster_name =  conf_list["cluster_name"]
+    my_port         =  conf_list["my_port"]
+    print create_container(node1,cluster_name,my_port,create_json)
+    print create_container(node2,cluster_name,my_port,create_json)
+    print create_container(node3,cluster_name,my_port,create_json)
+
+main()
+```
+配置文件:
+```
+[global]
+cluster_name=demo
+node1=192.168.1.101
+node2=192.168.1.101
+node3=192.168.1.102
+[custom]
+mysql_user=demo
+mysql_user_host=%
+mysql_user_grant=1
+mysql_database=demo
+mysql_user_password=123456
+mysql_root_password="demopass"
+transfer_limit=6000
+interface=eth0 # 请务必改成服务器本地网卡名，否则会一直retry check！！
+memory=512  #512M
+my_port=3310
+mount_dir=/data/mysql_data
+```
