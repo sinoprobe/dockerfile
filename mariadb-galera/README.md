@@ -49,13 +49,13 @@ docker run -d \
     -e mysql_user=demo \
     -e mysql_user_password=123456 \
     -v /data/mariadb-galera:/data/mariadb-galera \
-   jagerzhang/mariadb-galera
+   sinoprobe/mariadb-galera
 ```
 执行后，可以执行 docker logs -f demo-3310 查看启动日志，也可以执行 tail -f /data/mariadb-galera/logs/error.log 查看运行日，启动成功后，可以执行如下命令查看集群状态：
 
 `mysql -h192.168.1.100 -P3310 -udemo -p123456 -e "show status like '%wsrep%'"`
 
-#### 批量创建(请事先创建3个地址分别为192.168.1.100，192.168.1.101，192.168.1.102的虚拟机并安装docker(详见 https://docs.docker.com/engine/install/centos/ )，配置docker API服务为2375端口(参考：https://www.cnblogs.com/nhz-M/p/11150607.html)，配置防火墙！！！)
+#### 批量创建(请事先创建3个地址分别为192.168.1.100，192.168.1.101，192.168.1.102的虚拟机并安装docker(详见 https://docs.docker.com/engine/install/centos/ )，配置docker API服务为2375端口(参考：https://www.cnblogs.com/nhz-M/p/11150607.html，配置防火墙！！！)
 Python脚本:
 ```
 #-*- coding:utf-8 -*-
@@ -82,7 +82,7 @@ def gen_create_request(member_address=None):
         env_list.append("WSREP_MEMBER_ADDRESS=%s" % member_address)
     create_json = {
     "Env": env_list,
-    "Image": "jagerzhang/mariadb-galera:10.3.12",
+    "Image": "sinoprobe/mariadb-galera:10.3.12",
     "HostConfig": {
        "Binds": [
            "%s/%s-%s:/data/mariadb-galera" % (conf_list["mount_dir"],conf_list["cluster_name"],conf_list["my_port"]),
@@ -104,7 +104,7 @@ def gen_create_request(member_address=None):
 def create_container(host,cluster_name,my_port,create_json):
     headers = {'Content-type': 'application/json'}
     print "pulling image..."
-    url          =  "http://%s:2375/v1.24/images/create?fromImage=jagerzhang/mariadb-galera&tag=10.3.12" % host
+    url          =  "http://%s:2375/v1.24/images/create?fromImage=sinoprobe/mariadb-galera&tag=10.3.12" % host
     result       =  requests.post(url)
     print result.text
     if result.status_code == 200:
