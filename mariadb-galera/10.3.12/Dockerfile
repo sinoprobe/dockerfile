@@ -1,4 +1,4 @@
-FROM jagerzhang/mariadb:10.3.12
+FROM sinoprobe/mariadb:10.3.12
 MAINTAINER jerry<tnsm@163.com>
 
 ENV my_port=3307 \
